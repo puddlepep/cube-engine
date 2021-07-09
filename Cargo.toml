@@ -1,0 +1,17 @@
+[package]
+name = "voxel_engine"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+image = "0.23"
+winit = "0.24"
+cgmath = "0.18"
+wgpu = "0.8"
+futures = "0.3"
+bytemuck = { version = "1.4", features = [ "derive" ] }
+queues = "1.0.2"
+rand = "0.8.0"
+noise = "0.7"
