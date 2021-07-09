@@ -174,7 +174,7 @@ impl Chunk {
                         let origin = chunk_position + offset;
                         let atlas = &world.block_atlas;
 
-                        let block = world.block_list.blocks.get(block_id as usize - 1).unwrap();
+                        let block = world.block_list.blocks.get(block_id as usize).unwrap();
                         
                         if x == 0 {
                             match world.chunks.get_mut(&(self.position + Chunk::LEFT)) {
