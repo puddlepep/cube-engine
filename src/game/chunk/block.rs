@@ -114,6 +114,8 @@ impl BlockList {
         let block_count = fs::read_dir("./src/game/data/blocks").unwrap().count() as u32;
         let mut block_vec: Vec<Block> = Vec::new();
 
+        block_vec.push(Block { id: 0, name: String::from("air"), sided: false });
+
         let mut atlas_buf: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> = image::ImageBuffer::new(64, block_count * 16);
         for (_x, _y, pixel) in atlas_buf.enumerate_pixels_mut() {
             *pixel = image::Rgba([255 as u8, 255 as u8, 255 as u8, 255 as u8]);
@@ -184,12 +186,23 @@ impl BlockList {
                 panic!("Error saving atlas!: {:?}", error);
             }
         }
-        
+
         BlockList {
             blocks: block_vec,
             atlas: image::open("./src/game/data/blocks/atlas.png").unwrap(),
         }
         
+    }
+
+    pub fn get_block(&self, name: String) -> Option<&Block> {
+
+        for (i, block) in self.blocks.iter().enumerate() {
+            if block.name == name {
+                return self.blocks.get(i);
+            }
+        }  
+        
+        None
     }
 
 }

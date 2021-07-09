@@ -69,17 +69,18 @@ impl Chunk {
                         covered = true;
                     }
 
+
                     if state > 0.5 {
                         if state > 0.6 || covered {
                             if state > 0.65 {
-                                grid[x][y][z] = 3;
+                                grid[x][y][z] = world.block_list.get_block(String::from("stone")).unwrap().id;
                             }
                             else {
-                                grid[x][y][z] = 1;
+                                grid[x][y][z] = world.block_list.get_block(String::from("dirt")).unwrap().id;
                             }
                         }
                         else {
-                            grid[x][y][z] = 2;
+                            grid[x][y][z] = world.block_list.get_block(String::from("grass")).unwrap().id;
                         }
                     }
 
