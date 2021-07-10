@@ -3,13 +3,6 @@ use cgmath::Vector3;
 use image::{DynamicImage, GenericImageView};
 use std::fs;
 
-// pub static BLOCKS: &'static [Block; 4] = &[
-//     Block { id: 0, name: "air", color: Color { r: 0.0, g: 0.0, b: 0.0, a: 0.0 } },
-//     Block { id: 1, name: "grass", color: Color { r: 0.0, g: 1.0, b: 0.5, a: 1.0 } },
-//     Block { id: 2, name: "dirt", color: Color { r: 0.5, g: 0.4, b: 0.3, a: 1.0 } },
-//     Block { id: 3, name: "stone", color: Color { r: 0.4, g: 0.4, b: 0.4, a: 1.0 } }
-// ];
-
 pub struct Block {
     pub id: u8,
     pub name: String,

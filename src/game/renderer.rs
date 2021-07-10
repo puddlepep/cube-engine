@@ -51,7 +51,7 @@ impl Renderer {
 
         let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
             label: None,
-            source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(include_str!("renderer/shaders/default.wgsl").into()),
             flags: wgpu::ShaderFlags::empty(),
         });
 
@@ -208,8 +208,6 @@ impl Renderer {
                 None => ()
             }
 
-            
-
             for mesh in pool {
                 render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
                 render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
@@ -226,8 +224,6 @@ impl Renderer {
         self.swap_chain_desc.height = new_size.height;
         self.swap_chain = self.device.create_swap_chain(&self.surface, &self.swap_chain_desc);
         self.depth_texture = texture::Texture::create_depth_texture(&self.device, &self.swap_chain_desc);
-
-        //self.camera.aspect = new_size.width as f32 / new_size.height as f32;
     }
 
 }
