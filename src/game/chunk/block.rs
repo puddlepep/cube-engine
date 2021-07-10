@@ -1,10 +1,7 @@
 
 use cgmath::Vector3;
 use image::{DynamicImage, GenericImageView};
-use crate::game::color::Color;
-use std::fs::{self, FileType};
-use super::super::renderer;
-use renderer::texture;
+use std::fs;
 
 // pub static BLOCKS: &'static [Block; 4] = &[
 //     Block { id: 0, name: "air", color: Color { r: 0.0, g: 0.0, b: 0.0, a: 0.0 } },

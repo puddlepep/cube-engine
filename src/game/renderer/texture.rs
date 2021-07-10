@@ -1,8 +1,4 @@
-use std::path::Path;
-
 use image::GenericImageView;
-
-// Of note! Texture has to be of 32-bit depth!
 
 pub struct Texture {
     pub texture: wgpu::Texture,

@@ -3,9 +3,8 @@ pub mod block;
 use block::Block;
 use super::{World, renderer::mesh::Mesh};
 use super::renderer::vertex::Vertex;
-use super::color::Color;
 use cgmath::Vector3;
-use noise::{OpenSimplex, NoiseFn};
+use noise::NoiseFn;
 
 pub const CHUNK_SIZE: usize = 16;
 pub const GRID_MAX: usize = CHUNK_SIZE - 1;
@@ -37,6 +36,17 @@ impl Chunk {
     pub const LEFT: Vector3<i32> = Vector3::new(-1, 0, 0);
     pub const RIGHT: Vector3<i32> = Vector3::new(1, 0, 0);
 
+    pub fn get_noise_value_at(position: cgmath::Vector3<i32>, world: &mut World) -> f64 {
+
+        let noise_scale = 0.03;
+        let noise_position: [f64; 3] = [position.x as f64 * noise_scale, position.y as f64 * noise_scale, position.z as f64 * noise_scale];
+
+        let mut value = world.simplex.get(noise_position) + 0.5;
+        value = value.powf(3.0);
+        value += 1.0 - ((position.y as f64 + 64.0) / 64.0);
+        value
+    }
+
     pub fn new(position: cgmath::Vector3<i32>, world: &mut World) -> Chunk {
 
         let mut grid = Box::new([[[0; CHUNK_SIZE]; CHUNK_SIZE]; CHUNK_SIZE]);
@@ -44,35 +54,23 @@ impl Chunk {
         for z in 0..CHUNK_SIZE {
             for y in (0..CHUNK_SIZE).rev() {
                 for x in 0..CHUNK_SIZE {
-
-                    let factor = 0.03;
-                    let block_pos = (position * CHUNK_SIZE as i32) + cgmath::Vector3::new(x as i32, y as i32, z as i32);
-                    let new_block_pos: [f64; 3] = [block_pos.x as f64 * factor, block_pos.y as f64 * factor, block_pos.z as f64 * factor];
                     
-                    let mut state = world.simplex.get(new_block_pos) + 0.5;
-                    state = state.powf(3.0);
-                    state += 1.0 - ((block_pos.y as f64 + 64.0) / 64.0);
+                    let block_pos = (position * CHUNK_SIZE as i32) + cgmath::Vector3::new(x as i32, y as i32, z as i32);
+                    let value = Chunk::get_noise_value_at(block_pos, world);
             
                     let mut covered = false;
 
                     if y == GRID_MAX {
-                        match world.chunks.get_mut(&(position + Chunk::UP)) {
-                            Some(chunk) => {
-                                if chunk.grid[0][y][z] != 0 {
-                                    covered = true;
-                                }
-                            }
-                            None => ()
-                        }
+                        let block_above = Chunk::get_noise_value_at(block_pos + Vector3::new(0, 1, 0), world);
+                        if block_above > 0.5 { covered = true; }
                     }
                     else if grid[x][y+1][z] != 0 {
                         covered = true;
                     }
 
-
-                    if state > 0.5 {
-                        if state > 0.6 || covered {
-                            if state > 0.65 {
+                    if value > 0.5 {
+                        if value > 0.6 || covered {
+                            if value > 0.65 {
                                 grid[x][y][z] = world.block_list.get_block(String::from("stone")).unwrap().id;
                             }
                             else {
