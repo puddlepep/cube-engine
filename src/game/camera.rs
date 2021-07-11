@@ -59,6 +59,22 @@ impl Camera {
 
     }
 
+    // Returns all (important) normalized directions of the camera.
+    // -> ( forward, right, up )
+    pub fn get_headings(&mut self) -> ( Vector3<f32>, Vector3<f32>, Vector3<f32> ) {
+        
+        let y_rot = cgmath::Matrix3::from_angle_y(Rad(-self.yaw));
+        let forward = y_rot * -Vector3::unit_z();
+        let right = forward.cross(Vector3::unit_y());
+        let p_rot = cgmath::Matrix3::from_axis_angle(right, Rad(self.pitch));
+        let forward = p_rot * forward;
+        let up = -forward.cross(right);
+
+        (forward, right, up)
+
+    }
+
+    #[allow(dead_code)]
     pub fn input(&mut self, input: &mut InputMap, delta: f32) {
         
         let spd_mul = 1.25;
@@ -68,16 +84,8 @@ impl Camera {
 
         let speed = self.speed * delta;
         let sensitivity = self.sensitivity * delta;
-        
-        let y_rot = cgmath::Matrix3::from_angle_y(Rad(-self.yaw));
-        let forward = y_rot * -Vector3::unit_z();
-        let right = forward.cross(Vector3::unit_y());
-        let p_rot = cgmath::Matrix3::from_axis_angle(right, Rad(self.pitch));
-        let forward = p_rot * forward;
-        let up = -forward.cross(right);
-        
-        let mouse_x = input.mouse.delta.x;
-        let mouse_y = input.mouse.delta.y;
+
+        let (forward, right, up) = self.get_headings();
 
         if input.get_key(Key::W).held {
             self.position += forward * speed;
@@ -102,6 +110,9 @@ impl Camera {
         if input.get_key(Key::Space).held {
             self.position += up * speed;
         }
+
+        let mouse_x = input.mouse.delta.x;
+        let mouse_y = input.mouse.delta.y;
 
         self.pitch -= mouse_y * sensitivity;
         self.yaw += mouse_x * sensitivity;

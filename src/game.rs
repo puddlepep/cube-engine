@@ -3,6 +3,8 @@ mod chunk;
 mod input_handler;
 mod camera;
 mod color;
+mod player;
+mod collision;
 
 use std::cmp::min;
 use std::f32::consts::PI;
@@ -20,6 +22,7 @@ use futures::executor::block_on;
 use color::Color;
 use crate::game::chunk::block::BlockList;
 
+use self::chunk::block::Block;
 use self::renderer::Renderer;
 use self::renderer::mesh::Mesh;
 use std::collections::HashMap;
@@ -27,7 +30,7 @@ use cgmath::{MetricSpace, Rad, VectorSpace};
 use cgmath::Vector3;
 use cgmath::Matrix3;
 
-const RENDER_DISTANCE: u32 = 8;
+const RENDER_DISTANCE: u32 = 2;
 const DESTROY_DISTANCE: u32 = RENDER_DISTANCE + 2;
 const CHUNKS_GEN_PER_FRAME: u32 = 2;
 
@@ -165,9 +168,30 @@ impl World {
             },
             None => ()
         }
-
-
     }
+
+    pub fn get_block_at(&self, position: Vector3<i32>) -> Option<&Block> {
+
+        let cs = chunk::CHUNK_SIZE as i32;
+        let csf = chunk::CHUNK_SIZE as f32;
+
+        let chunk_position = Vector3::new(position.x as f32, position.y as f32, position.z as f32) / csf;
+        let chunk_position = Vector3::new(chunk_position.x.floor() as i32, chunk_position.y.floor() as i32, chunk_position.z.floor() as i32);
+
+        let block_position = (position % cs + Vector3::new(cs, cs, cs)) % cs;
+        // ^ modulo, as '%' is actually remainder.
+
+        match self.chunks.get(&chunk_position) {
+            Some(chunk) => {
+                let id = chunk.grid[block_position.x as usize][block_position.y as usize][block_position.z as usize];
+                self.block_list.blocks.get(id as usize)
+            },
+            None => None
+        }
+    
+    }
+    
+    
 }
 
 pub fn run() {
@@ -188,21 +212,8 @@ pub fn run() {
 
     let mut renderer = block_on(renderer::Renderer::new(&window));
     let mut input = input_handler::InputMap::new();
-
-    let mut camera = camera::Camera {
-        position: (0.0, 1.0, 2.0).into(),
-        yaw: 0.0,
-        pitch: 0.0,
-        speed: 10.0,
-        sensitivity: 0.5,
-        fovy: cgmath::Deg(90.0).into(),
-        near: 0.1,
-        far: 300.0,
-        aspect: renderer.swap_chain_desc.width as f32 / renderer.swap_chain_desc.height as f32,
-    };
-
+    let mut player = player::Player::new(&renderer);
     
-
     let mut previous_frame_time = std::time::Instant::now();
     event_loop.run(move | event, _, control_flow | {
 
@@ -223,7 +234,7 @@ pub fn run() {
 
                     if !minimized {
                         renderer.resize(new_size);
-                        camera.resize(new_size.width, new_size.height);
+                        player.camera.resize(new_size.width, new_size.height);
                     }
 
                 },
@@ -255,7 +266,7 @@ pub fn run() {
                         }
                     }
                     
-                    renderer.render(&camera, &pool, world.sky_color);
+                    renderer.render(&player.camera, &pool, world.sky_color);
                 }
             },
 
@@ -276,11 +287,11 @@ pub fn run() {
                 previous_frame_time = now;
                 //println!("frame time: {}", delta.as_secs_f32());
 
-                camera.input(&mut input, delta);
+                player.update(&mut input, &world, delta);
                 let fcam_pos: Vector3<f32> = Vector3::new(
-                    camera.position.x as f32 / chunk::CHUNK_SIZE as f32,
-                    camera.position.y as f32 / chunk::CHUNK_SIZE as f32, 
-                    camera.position.z as f32 / chunk::CHUNK_SIZE as f32
+                    player.camera.position.x as f32 / chunk::CHUNK_SIZE as f32,
+                    player.camera.position.y as f32 / chunk::CHUNK_SIZE as f32, 
+                    player.camera.position.z as f32 / chunk::CHUNK_SIZE as f32
                 );
                 let icam_pos: Vector3<i32> = Vector3::new(fcam_pos.x as i32, fcam_pos.y as i32, fcam_pos.z as i32);
 
