@@ -3,20 +3,23 @@ mod uniforms;
 pub mod texture;
 pub mod vertex;
 pub mod mesh;
+pub mod ui;
 
 use mesh::Mesh;
 use vertex::Vertex;
+use wgpu::util::DeviceExt;
 
 use super::color::Color;
 
 pub struct Renderer {
-    pub render_pipeline: wgpu::RenderPipeline,
+    pub default_pipeline: wgpu::RenderPipeline,
+    pub ui_manager: ui::UIManager,
     pub swap_chain_desc: wgpu::SwapChainDescriptor,
     pub swap_chain: wgpu::SwapChain,
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
     pub surface: wgpu::Surface,
-    pub uniforms: uniforms::Uniforms,
+    pub default_uniforms: uniforms::DefaultUniforms,
     pub depth_texture: texture::Texture,
     pub block_atlas: texture::Texture,
 }
@@ -39,7 +42,6 @@ impl Renderer {
         // The device is a connection to the GPU, and the command queue
         // is the list of commands for the GPU to perform.
         let (device, queue) = adapter.request_device(
-            
             &wgpu::DeviceDescriptor 
             {
                 label: None,
@@ -49,7 +51,7 @@ impl Renderer {
             None
         ).await.expect("Failed to get device & queue.");
 
-        let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+        let default_shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
             label: None,
             source: wgpu::ShaderSource::Wgsl(include_str!("renderer/shaders/default.wgsl").into()),
             flags: wgpu::ShaderFlags::empty(),
@@ -93,26 +95,28 @@ impl Renderer {
             label: None,
         });
 
-        let uniforms = uniforms::Uniforms::new(&device);
+        let default_uniforms = uniforms::DefaultUniforms::new(&device);
+        let ui_manager = ui::UIManager::new(&device, &swap_chain_desc, &queue);
 
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        let default_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: None,
-            bind_group_layouts: &[&uniforms.bind_group_layout, &texture_bind_group_layout],
+            bind_group_layouts: &[&default_uniforms.bind_group_layout, &texture_bind_group_layout],
             push_constant_ranges: &[],
         });
 
-        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+
+        let default_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: None,
-            layout: Some(&pipeline_layout),
+            layout: Some(&default_pipeline_layout),
 
             vertex: wgpu::VertexState {
-                module: &shader,
+                module: &default_shader,
                 entry_point: "vertex",
                 buffers: &[Vertex::layout()],
             },
 
             fragment: Some(wgpu::FragmentState {
-                module: &shader,
+                module: &default_shader,
                 entry_point: "fragment",
                 targets: &[
                     wgpu::ColorTargetState {
@@ -145,13 +149,14 @@ impl Renderer {
         });
 
         Renderer {
-            render_pipeline,
+            default_pipeline,
+            ui_manager,
             swap_chain_desc,
             swap_chain,
             device,
             queue,
             surface,
-            uniforms,
+            default_uniforms,
             depth_texture,
             block_atlas,
         }
@@ -159,8 +164,11 @@ impl Renderer {
 
     pub fn render(&mut self, camera: &super::camera::Camera, pool: &Vec<&Mesh>, sky_color: Color) {
 
-        self.uniforms.update_view_proj(camera.build_view_projection_matrix());
-        self.uniforms.write(&self.queue);
+        self.default_uniforms.update_view_proj(camera.build_view_projection_matrix());
+        self.default_uniforms.write(&self.queue);
+
+        self.ui_manager.uniforms.update_view_proj(camera.build_ui_projection_matrix());
+        self.ui_manager.uniforms.write(&self.queue);
 
         let frame = self.swap_chain
             .get_current_frame()
@@ -196,8 +204,8 @@ impl Renderer {
             });
 
             
-            render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_bind_group(0, &self.uniforms.bind_group, &[]);
+            render_pass.set_pipeline(&self.default_pipeline);
+            render_pass.set_bind_group(0, &self.default_uniforms.bind_group, &[]);
 
             // weird bypass, if i dont do this it errors.
             // i know chunk_texture.bind_group is *always* valid, but the renderer doesn't.
@@ -214,6 +222,30 @@ impl Renderer {
                 render_pass.draw_indexed(0..mesh.indices.len() as u32, 0, 0..1);
             }
 
+            // UI Render Pass
+            render_pass.set_pipeline(&self.ui_manager.pipeline);
+            render_pass.set_bind_group(0, &self.ui_manager.uniforms.bind_group, &[]);
+
+            for rect in &self.ui_manager.render_pool {
+                match &rect.mesh {
+                    Some(mesh) => {
+
+                        match &rect.texture.bind_group {
+                            Some(bg) => {
+                                render_pass.set_bind_group(1, bg, &[]);
+                            },
+                            None => ()
+                        }
+
+                        render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+                        render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+                        render_pass.draw_indexed(0..mesh.indices.len() as u32, 0, 0..1);
+                    },
+                    None => ()
+                }
+
+            }   
+
         }
         
         self.queue.submit(Some(encoder.finish()));
@@ -224,6 +256,7 @@ impl Renderer {
         self.swap_chain_desc.height = new_size.height;
         self.swap_chain = self.device.create_swap_chain(&self.surface, &self.swap_chain_desc);
         self.depth_texture = texture::Texture::create_depth_texture(&self.device, &self.swap_chain_desc);
+        self.ui_manager.resize(&self.device, new_size.width, new_size.height);
     }
 
 }

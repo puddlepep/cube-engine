@@ -31,14 +31,14 @@ pub struct Camera {
     pub sensitivity: f32,
 
     pub fovy: cgmath::Rad<f32>,
-    pub aspect: f32,
     pub near: f32,
     pub far: f32,
+
+    pub width: u32,
+    pub height: u32,
 }
 
 impl Camera {
-
-    //pub fn update(&self, uniforms: &Uniforms, )
 
     pub fn build_view_projection_matrix(&self) -> Matrix4<f32> {
         
@@ -53,9 +53,16 @@ impl Camera {
         let dir = pitch_rot * dir;
         
         let view = Matrix4::look_to_rh(cgmath::Point3::new(self.position.x, self.position.y, self.position.z), dir, Vector3::unit_y());
-        let projection = cgmath::perspective(self.fovy, self.aspect, self.near, self.far);
+        let projection = cgmath::perspective(self.fovy, self.width as f32 / self.height as f32, self.near, self.far);
 
         return OPENGL_TO_WGPU_MATRIX * projection * view;
+
+    }
+
+    pub fn build_ui_projection_matrix(&self) -> Matrix4<f32> {
+
+        let projection = cgmath::ortho(0.0, self.width as f32, self.height as f32, 0.0, -1.0, 1.0);
+        return projection;
 
     }
 
@@ -74,56 +81,9 @@ impl Camera {
 
     }
 
-    #[allow(dead_code)]
-    pub fn input(&mut self, input: &mut InputMap, delta: f32) {
-        
-        let spd_mul = 1.25;
-        let wheel_mul = if input.mouse.wheel_delta < 0.0 { 1.0 / spd_mul } else if input.mouse.wheel_delta > 0.0 { spd_mul } else { 1.0 };
-
-        self.speed *= wheel_mul;
-
-        let speed = self.speed * delta;
-        let sensitivity = self.sensitivity * delta;
-
-        let (forward, right, up) = self.get_headings();
-
-        if input.get_key(Key::W).held {
-            self.position += forward * speed;
-        }
-
-        if input.get_key(Key::S).held {
-            self.position += -forward * speed;
-        }
-
-        if input.get_key(Key::A).held {
-            self.position += -right * speed;
-        }
-
-        if input.get_key(Key::D).held {
-            self.position += right * speed;
-        }
-
-        if input.get_key(Key::LShift).held {
-            self.position += -up * speed;
-        }
-
-        if input.get_key(Key::Space).held {
-            self.position += up * speed;
-        }
-
-        let mouse_x = input.mouse.delta.x;
-        let mouse_y = input.mouse.delta.y;
-
-        self.pitch -= mouse_y * sensitivity;
-        self.yaw += mouse_x * sensitivity;
-
-        if self.pitch < PITCH_MIN { self.pitch = PITCH_MIN; }
-        if self.pitch > PITCH_MAX { self.pitch = PITCH_MAX; }
-
-    }
-
     pub fn resize(&mut self, width: u32, height: u32) {
-        self.aspect = width as f32 / height as f32;
+        self.width = width;
+        self.height = height;
     }
 
 }
