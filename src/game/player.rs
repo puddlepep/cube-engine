@@ -10,7 +10,6 @@ pub struct Player {
 
     pub camera: super::camera::Camera,
     pub speed: f32,
-    pub acceleration: f32,
     pub jump_force: f32,
     pub position: cgmath::Vector3<f32>,
     pub gravity_vel: cgmath::Vector3<f32>,
@@ -29,7 +28,7 @@ impl Player {
                 yaw: 0.0,
                 pitch: 0.0,
                 speed: 10.0,
-                sensitivity: 0.5,
+                sensitivity: 0.005,
                 fovy: cgmath::Deg(90.0).into(),
                 near: 0.1,
                 far: 300.0,
@@ -37,12 +36,11 @@ impl Player {
                 width: renderer.swap_chain_desc.width,
                 height: renderer.swap_chain_desc.height,
             },
-            speed: 20.0,
-            acceleration: 5.0,
-            jump_force: 0.06,
+            speed: 0.03,
+            jump_force: 0.07,
             position: cgmath::Vector3::new(0.0, 0.0, 0.0),
             gravity_vel: cgmath::Vector3::new(0.0, 0.0, 0.0),
-            gravity: 0.2,
+            gravity: 0.002,
 
             freecam_mode: false,
         }
@@ -53,15 +51,19 @@ impl Player {
         Vector3::new(p.x.floor() as i32, p.y.floor() as i32, p.z.ceil() as i32)
     }
 
-    pub fn update(&mut self, input: &mut InputMap, world: &World, delta: f32) {
+    pub fn update(&mut self, input: &mut InputMap, world: &World) {
 
         if input.get_key(Key::F).just_pressed {
             self.freecam_mode = !self.freecam_mode;
             println!("toggled freecam mode");
         }
 
-        let speed = self.speed * delta / 5.0;
-        let sensitivity = self.camera.sensitivity * delta;
+        if input.get_key(Key::F3).held {
+            println!("coordinates: {:?}", self.position);
+        }
+
+        let speed = self.speed;
+        let sensitivity = self.camera.sensitivity;
         
         let (forward, right, up) = self.camera.get_headings();
         let mut forward_horizontal = forward - Vector3::new(0.0, forward.y, 0.0);
@@ -79,7 +81,7 @@ impl Player {
 
         if !self.freecam_mode {
 
-            self.gravity_vel += Vector3::new(0.0, -self.gravity * delta, 0.0);
+            self.gravity_vel += Vector3::new(0.0, -self.gravity, 0.0);
     
             let x_collider = collision::CircleCollider::new(self.position + Vector3::new(velocity.x, 0.0, 0.0), 0.25);
             let z_collider = collision::CircleCollider::new(self.position + Vector3::new(0.0, 0.0, velocity.z), 0.25);
@@ -144,7 +146,7 @@ impl Player {
         }
         else {
             
-            let speed = speed * 2.0;
+            let speed = speed * 4.0;
             self.gravity_vel = Vector3::new(0.0, 0.0, 0.0);
             let fw = forward * speed * z_input as f32;
             let rt = right * speed * x_input as f32;
