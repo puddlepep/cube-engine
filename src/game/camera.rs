@@ -4,9 +4,6 @@ use cgmath::Rad;
 use cgmath::Vector3;
 use cgmath::Matrix4;
 
-use winit::event::VirtualKeyCode as Key;
-use super::input_handler::InputMap;
-
 // The coordinate system in wgpu is based on DirectX and Metal's coordinate systems, which are in
 // normalized device coordinates. The x and y axis being in the range of -1.0 to 1.0, and the z
 // axis in range of 0.0 to 1.0. The cgmath crate is built for OpenGL's coordinate system, so we must translate.

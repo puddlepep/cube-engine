@@ -7,8 +7,6 @@ pub mod ui;
 
 use mesh::Mesh;
 use vertex::Vertex;
-use wgpu::util::DeviceExt;
-
 use super::color::Color;
 
 pub struct Renderer {
@@ -180,7 +178,6 @@ impl Renderer {
         });
 
         {
-
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
                 color_attachments: &[
