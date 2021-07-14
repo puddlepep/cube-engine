@@ -11,7 +11,7 @@ pub const GRID_MAX: usize = CHUNK_SIZE - 1;
 
 pub struct Chunk {
     pub position: cgmath::Vector3<i32>,
-    pub grid: Box<[[[u8; CHUNK_SIZE]; CHUNK_SIZE]; CHUNK_SIZE]>,
+    pub grid: Box<[[[u32; CHUNK_SIZE]; CHUNK_SIZE]; CHUNK_SIZE]>,
     pub mesh: Option<Mesh>,
     pub active_neighbors: u8,
 
@@ -38,12 +38,12 @@ impl Chunk {
 
     pub fn get_noise_value_at(position: cgmath::Vector3<i32>, world: &mut World) -> f64 {
 
+        let max_height = 64.0;
         let noise_scale = 0.03;
         let noise_position: [f64; 3] = [position.x as f64 * noise_scale, position.y as f64 * noise_scale, position.z as f64 * noise_scale];
 
-        let mut value = world.simplex.get(noise_position) + 0.5;
-        value = value.powf(3.0);
-        value += 1.0 - ((position.y as f64 + 64.0) / 64.0);
+        let mut value = world.simplex.get(noise_position);
+        value += 1.0 - ((position.y as f64 + 64.0) / max_height);
         value
     }
 
@@ -56,32 +56,60 @@ impl Chunk {
                 for x in 0..CHUNK_SIZE {
                     
                     let block_pos = (position * CHUNK_SIZE as i32) + cgmath::Vector3::new(x as i32, y as i32, z as i32);
-                    let value = Chunk::get_noise_value_at(block_pos, world);
+                    
+                    let value: f64;
+                    if block_pos.y < -32 {
+                        value = 1.0;
+                    }
+                    else if block_pos.y > 32 {
+                        value = 0.0;
+                    }
+                    else {
+                        value = Chunk::get_noise_value_at(block_pos, world);
+                    }
             
                     let mut covered = false;
 
                     if y == GRID_MAX {
                         let block_above = Chunk::get_noise_value_at(block_pos + Vector3::new(0, 1, 0), world);
-                        if block_above > 0.5 { covered = true; }
+                        if block_above > 0.0 { covered = true; }
                     }
                     else if grid[x][y+1][z] != 0 {
                         covered = true;
                     }
 
-                    if value > 0.5 {
-                        if value > 0.6 || covered {
-                            if value > 0.65 {
-                                grid[x][y][z] = world.block_list.get_block(String::from("stone")).unwrap().id;
+                    if value > 0.0 {
+
+                        let stone = world.block_list.get_block("stone").unwrap().id;
+                        let dirt = world.block_list.get_block("dirt").unwrap().id;
+                        let grass = world.block_list.get_block("grass").unwrap().id;
+
+                        if value > 0.1 || covered {
+                            if value > 0.15 {
+                                grid[x][y][z] = stone;
                             }
                             else {
-                                grid[x][y][z] = world.block_list.get_block(String::from("dirt")).unwrap().id;
+                                grid[x][y][z] = dirt;
                             }
                         }
                         else {
-                            grid[x][y][z] = world.block_list.get_block(String::from("grass")).unwrap().id;
+                            grid[x][y][z] = grass;
                         }
                     }
 
+                    // if value > 0.5 {
+                    //     if value > 0.6 || covered {
+                    //         if value > 0.65 {
+                    //             grid[x][y][z] = world.block_list.get_block(String::from("stone")).unwrap().id;
+                    //         }
+                    //         else {
+                    //             grid[x][y][z] = world.block_list.get_block(String::from("dirt")).unwrap().id;
+                    //         }
+                    //     }
+                    //     else {
+                    //         grid[x][y][z] = world.block_list.get_block(String::from("grass")).unwrap().id;
+                    //     }
+                    // }
                 }
             }
         }

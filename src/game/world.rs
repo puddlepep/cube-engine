@@ -2,7 +2,7 @@ use std::{cmp::min, collections::HashMap, f32::consts::PI, time::{SystemTime, UN
 
 use cgmath::{Matrix3, MetricSpace, Rad, Vector3, VectorSpace, num_traits::clamp};
 use image::DynamicImage;
-use noise::{OpenSimplex, Seedable};
+use noise::{OpenSimplex, Seedable, Perlin};
 
 use super::{CHUNKS_GEN_PER_FRAME, RENDER_DISTANCE, chunk::{self, Chunk, block::{Block, BlockList}}, color::Color, renderer::Renderer};
 
@@ -16,6 +16,7 @@ pub struct World {
     pub chunk_queue: Vec<Vector3<i32>>,
     pub seed: u32,
     pub simplex: OpenSimplex,
+    pub perlin: Perlin,
     pub block_list: BlockList,
     pub block_atlas: DynamicImage,
 
@@ -46,6 +47,7 @@ impl World {
             chunk_queue: Vec::new(),
             seed,
             simplex: OpenSimplex::new().set_seed(seed),
+            perlin: Perlin::new().set_seed(seed),
             block_list: BlockList::initialize(),
             block_atlas: image::open("./src/game/data/blocks/atlas.png").unwrap(),
 
@@ -91,7 +93,6 @@ impl World {
         renderer.default_uniforms.data.light_direction = moonlight_direction.lerp(sunlight_direction, transition).into();
 
         // Go through the chunk queue one frame at a time, so as to smooth out the FPS a bit.
-
         let x = min(self.chunk_queue.len(), CHUNKS_GEN_PER_FRAME as usize);
         for _ in 0..x {
             let position = self.chunk_queue.remove(0);

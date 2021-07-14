@@ -4,7 +4,7 @@ use image::{DynamicImage, GenericImageView};
 use std::fs;
 
 pub struct Block {
-    pub id: u8,
+    pub id: u32,
     pub name: String,
     pub sided: bool,
 }
@@ -161,7 +161,7 @@ impl BlockList {
 
                         }
 
-                        block_vec.push(Block { id: y_offset as u8, name: block_folder.file_name().to_str().unwrap().into(), sided });
+                        block_vec.push(Block { id: y_offset, name: block_folder.file_name().to_str().unwrap().into(), sided });
                         y_offset += 1;
                     }
                 }
@@ -184,7 +184,7 @@ impl BlockList {
         
     }
 
-    pub fn get_block(&self, name: String) -> Option<&Block> {
+    pub fn get_block(&self, name: &str) -> Option<&Block> {
 
         for (i, block) in self.blocks.iter().enumerate() {
             if block.name == name {
