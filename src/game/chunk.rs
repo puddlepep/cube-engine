@@ -4,7 +4,6 @@ use block::Block;
 use super::{World, renderer::mesh::Mesh};
 use super::renderer::vertex::Vertex;
 use cgmath::Vector3;
-use noise::NoiseFn;
 
 pub const CHUNK_SIZE: usize = 16;
 pub const GRID_MAX: usize = CHUNK_SIZE - 1;
@@ -13,9 +12,9 @@ pub struct Chunk {
     pub position: cgmath::Vector3<i32>,
     pub grid: Box<[[[u32; CHUNK_SIZE]; CHUNK_SIZE]; CHUNK_SIZE]>,
     pub mesh: Option<Mesh>,
-    pub active_neighbors: u8,
-
+    
     pub should_regen_mesh: bool,
+    //pub active_neighbors: u8,
 }
 
 pub enum Face {
@@ -36,18 +35,20 @@ impl Chunk {
     pub const LEFT: Vector3<i32> = Vector3::new(-1, 0, 0);
     pub const RIGHT: Vector3<i32> = Vector3::new(1, 0, 0);
 
-    pub fn get_noise_value_at(position: cgmath::Vector3<i32>, world: &mut World) -> f64 {
+    pub fn get_noise_value_at(position: cgmath::Vector3<i32>, world: &World) -> f32 {
 
-        let max_height = 64.0;
+        let max_height: f32 = 64.0;
         let noise_scale = 0.03;
-        let noise_position: [f64; 3] = [position.x as f64 * noise_scale, position.y as f64 * noise_scale, position.z as f64 * noise_scale];
+        let nx = position.x as f32 * noise_scale;
+        let ny = position.y as f32 * noise_scale;
+        let nz = position.z as f32 * noise_scale;
 
-        let mut value = world.simplex.get(noise_position);
-        value += 1.0 - ((position.y as f64 + 64.0) / max_height);
+        let mut value = world.noise.get_noise3d(nx, ny, nz);
+        value += 1.0 - ((position.y as f32 + 64.0) / max_height);
         value
     }
 
-    pub fn new(position: cgmath::Vector3<i32>, world: &mut World) -> Chunk {
+    pub fn new(position: cgmath::Vector3<i32>, world: &World) -> Chunk {
 
         let mut grid = Box::new([[[0; CHUNK_SIZE]; CHUNK_SIZE]; CHUNK_SIZE]);
 
@@ -57,11 +58,11 @@ impl Chunk {
                     
                     let block_pos = (position * CHUNK_SIZE as i32) + cgmath::Vector3::new(x as i32, y as i32, z as i32);
                     
-                    let value: f64;
-                    if block_pos.y < -32 {
+                    let value: f32;
+                    if block_pos.y < -64 {
                         value = 1.0;
                     }
-                    else if block_pos.y > 32 {
+                    else if block_pos.y > 64 {
                         value = 0.0;
                     }
                     else {
@@ -114,7 +115,7 @@ impl Chunk {
             }
         }
 
-        Chunk { grid, position, mesh: None, active_neighbors: 0, should_regen_mesh: false }
+        Chunk { grid, position, mesh: None, should_regen_mesh: true } //active_neighbors: 0, should_regen_mesh: false }
 
     }
 
@@ -182,7 +183,8 @@ impl Chunk {
         }
     }
 
-    pub fn generate_mesh(&mut self, device: &wgpu::Device, world: &mut World) {
+    // Returns the vertices and indices of a chunk mesh.
+    pub fn generate_mesh_parts(&self, world: &World) -> (Vec<Vertex>, Vec<u16>) {
         
         let mut vertices: Vec<Vertex> = Vec::new();
         let mut indices: Vec<u16> = Vec::new();
@@ -203,12 +205,11 @@ impl Chunk {
                         let block = world.block_list.blocks.get(block_id as usize).unwrap();
                         
                         if x == 0 {
-                            match world.chunks.get_mut(&(self.position + Chunk::LEFT)) {
+                            match world.chunks.get(&(self.position + Chunk::LEFT)) {
                                 Some(chunk) => {
                                     if chunk.grid[GRID_MAX][y][z] == 0 {
                                         Chunk::build_face(origin, Face::Left, &mut vertices, &mut indices, block, atlas);
                                     }
-                                    if !self.should_regen_mesh { chunk.should_regen_mesh = true }
                                 }
                                 None => {
                                     Chunk::build_face(origin, Face::Left, &mut vertices, &mut indices, block, atlas);
@@ -220,12 +221,11 @@ impl Chunk {
                         }
 
                         if x == GRID_MAX {
-                            match world.chunks.get_mut(&(self.position + Chunk::RIGHT)) {
+                            match world.chunks.get(&(self.position + Chunk::RIGHT)) {
                                 Some(chunk) => {
                                     if chunk.grid[0][y][z] == 0 {
                                         Chunk::build_face(origin, Face::Right, &mut vertices, &mut indices, block, atlas);
                                     }
-                                    if !self.should_regen_mesh { chunk.should_regen_mesh = true }
                                 }
                                 None => {
                                     Chunk::build_face(origin, Face::Right, &mut vertices, &mut indices, block, atlas);
@@ -237,12 +237,11 @@ impl Chunk {
                         }
             
                         if y == 0 {
-                            match world.chunks.get_mut(&(self.position + Chunk::DOWN)) {
+                            match world.chunks.get(&(self.position + Chunk::DOWN)) {
                                 Some(chunk) => {
                                     if chunk.grid[x][GRID_MAX][z] == 0 {
                                         Chunk::build_face(origin, Face::Down, &mut vertices, &mut indices, block, atlas);
                                     }
-                                    if !self.should_regen_mesh { chunk.should_regen_mesh = true }
                                 }
                                 None => {
                                     Chunk::build_face(origin, Face::Down, &mut vertices, &mut indices, block, atlas);
@@ -254,12 +253,11 @@ impl Chunk {
                         }
             
                         if y == GRID_MAX {
-                            match world.chunks.get_mut(&(self.position + Chunk::UP)) {
+                            match world.chunks.get(&(self.position + Chunk::UP)) {
                                 Some(chunk) => {
                                     if chunk.grid[x][0][z] == 0 {
                                         Chunk::build_face(origin, Face::Up, &mut vertices, &mut indices, block, atlas);
                                     }
-                                    if !self.should_regen_mesh { chunk.should_regen_mesh = true }
                                 }
                                 None => {
                                     Chunk::build_face(origin, Face::Up, &mut vertices, &mut indices, block, atlas);
@@ -271,12 +269,11 @@ impl Chunk {
                         }
 
                         if z == 0 {
-                            match world.chunks.get_mut(&(self.position + Chunk::BACKWARD)) {
+                            match world.chunks.get(&(self.position + Chunk::BACKWARD)) {
                                 Some(chunk) => {
                                     if chunk.grid[x][y][GRID_MAX] == 0 {
                                         Chunk::build_face(origin, Face::Front, &mut vertices, &mut indices, block, atlas);
                                     }
-                                    if !self.should_regen_mesh { chunk.should_regen_mesh = true }
                                 }
                                 None => {
                                     Chunk::build_face(origin, Face::Front, &mut vertices, &mut indices, block, atlas);
@@ -288,12 +285,11 @@ impl Chunk {
                         }
             
                         if z == GRID_MAX {
-                            match world.chunks.get_mut(&(self.position + Chunk::FORWARD)) {
+                            match world.chunks.get(&(self.position + Chunk::FORWARD)) {
                                 Some(chunk) => {
                                     if chunk.grid[x][y][0] == 0 {
                                         Chunk::build_face(origin, Face::Back, &mut vertices, &mut indices, block, atlas);
                                     }
-                                    if !self.should_regen_mesh { chunk.should_regen_mesh = true }
                                 }
                                 None => {
                                     Chunk::build_face(origin, Face::Back, &mut vertices, &mut indices, block, atlas);
@@ -309,7 +305,10 @@ impl Chunk {
             }
         }
 
-        if vertices.len() == 0 { self.mesh = None; }
-        else { self.mesh = Some(Mesh::new(device, vertices, indices)); }
+        (vertices, indices)
+
+        //self.should_regen_mesh = false;
+        //if vertices.len() == 0 { self.mesh = None; }
+        //else { self.mesh = Some(Mesh::new(device, vertices, indices)); }
     }
 }

@@ -1,10 +1,12 @@
-use std::{cmp::min, collections::HashMap, f32::consts::PI, time::{SystemTime, UNIX_EPOCH}};
+use std::{cmp::min, collections::HashMap, f32::consts::PI, time::{SystemTime, UNIX_EPOCH}, u64};
 
 use cgmath::{Matrix3, MetricSpace, Rad, Vector3, VectorSpace, num_traits::clamp};
 use image::DynamicImage;
-use noise::{OpenSimplex, Seedable, Perlin};
+use bracket_noise::prelude::*;
+use std::sync::mpsc;
+use rayon::prelude::*;
 
-use super::{CHUNKS_GEN_PER_FRAME, RENDER_DISTANCE, chunk::{self, Chunk, block::{Block, BlockList}}, color::Color, renderer::Renderer};
+use super::{CHUNKS_GEN_PER_FRAME, RENDER_DISTANCE, chunk::{self, Chunk, block::{Block, BlockList}}, color::Color, renderer::{Renderer, mesh::Mesh}};
 
 fn smoothstep(edge0: f32, edge1: f32, input: f32) -> f32 {
     let x = clamp((input - edge0) / (edge1 - edge0), 0.0, 1.0);
@@ -14,9 +16,8 @@ fn smoothstep(edge0: f32, edge1: f32, input: f32) -> f32 {
 pub struct World {
     pub chunks: HashMap<Vector3<i32>, Chunk>,
     pub chunk_queue: Vec<Vector3<i32>>,
-    pub seed: u32,
-    pub simplex: OpenSimplex,
-    pub perlin: Perlin,
+    pub seed: u64,
+    pub noise: FastNoise,
     pub block_list: BlockList,
     pub block_atlas: DynamicImage,
 
@@ -40,14 +41,20 @@ impl World {
 
     pub fn new() -> World {
 
-        let seed = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos() as u32;
+        let seed = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos() as u64;
+        let mut noise = FastNoise::seeded(seed);
+        noise.set_noise_type(NoiseType::SimplexFractal);
+        noise.set_fractal_type(FractalType::FBM);
+        noise.set_fractal_octaves(2);
+        noise.set_fractal_gain(0.1);
+        noise.set_fractal_lacunarity(2.0);
+        noise.set_frequency(0.3);
 
         World {
             chunks: HashMap::new(),
             chunk_queue: Vec::new(),
             seed,
-            simplex: OpenSimplex::new().set_seed(seed),
-            perlin: Perlin::new().set_seed(seed),
+            noise,
             block_list: BlockList::initialize(),
             block_atlas: image::open("./src/game/data/blocks/atlas.png").unwrap(),
 
@@ -92,14 +99,94 @@ impl World {
         renderer.default_uniforms.data.light_color = Color::lerp(self.moonlight_color, self.daylight_color, transition).into();
         renderer.default_uniforms.data.light_direction = moonlight_direction.lerp(sunlight_direction, transition).into();
 
-        // Go through the chunk queue one frame at a time, so as to smooth out the FPS a bit.
-        let x = min(self.chunk_queue.len(), CHUNKS_GEN_PER_FRAME as usize);
-        for _ in 0..x {
-            let position = self.chunk_queue.remove(0);
-            let mut chunk = Chunk::new(position, self);
 
-            chunk.generate_mesh(&renderer.device, self);
-            self.chunks.insert(position, chunk);
+        // Multithreaded chunk generation.
+        let gen_count = min(self.chunk_queue.len(), CHUNKS_GEN_PER_FRAME as usize);
+        let gen_list = &self.chunk_queue[0..gen_count];
+
+        let (tx, rx) = mpsc::channel();
+
+        gen_list.par_iter()
+            .for_each_with(tx, |s, pos| {
+
+                let chunk = Chunk::new(*pos, self);
+                s.send((*pos, chunk)).unwrap();
+                
+                //chunk.generate_mesh(&renderer.device, self);
+
+            });
+        
+        for _ in 0..gen_count {
+
+            let (p, c): (Vector3<i32>, Chunk) = rx.recv().unwrap();
+            self.chunks.insert(p, c);
+            self.chunk_queue.remove(0);
+
+            match self.chunks.get_mut(&(p + Chunk::UP)) {
+                Some(chunk) => chunk.should_regen_mesh = true,
+                None => (),
+            }
+
+            match self.chunks.get_mut(&(p + Chunk::DOWN)) {
+                Some(chunk) => chunk.should_regen_mesh = true,
+                None => (),
+            }
+
+            match self.chunks.get_mut(&(p + Chunk::LEFT)) {
+                Some(chunk) => chunk.should_regen_mesh = true,
+                None => (),
+            }
+
+            match self.chunks.get_mut(&(p + Chunk::RIGHT)) {
+                Some(chunk) => chunk.should_regen_mesh = true,
+                None => (),
+            }
+
+            match self.chunks.get_mut(&(p + Chunk::FORWARD)) {
+                Some(chunk) => chunk.should_regen_mesh = true,
+                None => (),
+            }
+
+            match self.chunks.get_mut(&(p + Chunk::BACKWARD)) {
+                Some(chunk) => chunk.should_regen_mesh = true,
+                None => (),
+            }
+
+        }
+
+        // Multithreaded chunk meshing.
+        let mut meshes = Vec::new();
+        for (pos, chunk) in self.chunks.iter() {
+            if chunk.should_regen_mesh {
+                let (vertices, indices) = chunk.generate_mesh_parts(self);
+                meshes.push((*pos, (vertices, indices)));
+            }
+        }
+
+        let (tx, rx) = mpsc::channel();
+
+
+        let count = meshes.len();
+        meshes.par_drain(..meshes.len())
+            .for_each_with(tx, |tx, (pos, mesh_data)| {
+
+                let mesh = Mesh::new(&renderer.device, mesh_data.0, mesh_data.1);
+                tx.send((pos, mesh)).unwrap();
+
+
+            });
+        
+        for _ in 0..count {
+
+            let (pos, mesh) = rx.recv().unwrap();
+            match self.chunks.get_mut(&pos) {
+                Some(chunk) => {
+                    chunk.mesh = Some(mesh);
+                    chunk.should_regen_mesh = false;
+                },
+                None => (),
+            }
+
         }
 
     }
@@ -132,16 +219,16 @@ impl World {
         }
     }
 
-    pub fn update_chunk_mesh(&mut self, at: &Vector3<i32>, renderer: &Renderer) {
+    // pub fn update_chunk_mesh(&mut self, at: &Vector3<i32>, renderer: &Renderer) {
 
-        match self.chunks.remove(at) {
-            Some(mut chunk) => {
-                chunk.generate_mesh(&renderer.device, self);
-                self.chunks.insert(*at, chunk);
-            },
-            None => ()
-        }
-    }
+    //     match self.chunks.remove(at) {
+    //         Some(mut chunk) => {
+    //             chunk.generate_mesh(&renderer.device, self);
+    //             self.chunks.insert(*at, chunk);
+    //         },
+    //         None => ()
+    //     }
+    // }
 
     pub fn get_block_at(&self, position: Vector3<i32>) -> Option<&Block> {
 
