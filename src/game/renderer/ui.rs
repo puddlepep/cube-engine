@@ -156,8 +156,8 @@ impl UIManager {
         });
 
         let mut crosshair = UIRect::new(
-            UIVector { rx: 0.5, ry: 0.5, ox: -15.0, oy: -15.0 }, 
-            UIVector { rx: 0.0, ry: 0.0, ox: 30.0, oy: 30.0 },
+            UIVector { rx: 0.5, ry: 0.5, ox: -8.0, oy: -8.0 }, 
+            UIVector { rx: 0.0, ry: 0.0, ox: 16.0, oy: 16.0 },
             device,
             queue,
             "./src/game/data/ui/crosshair.png".into(),
