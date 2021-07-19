@@ -6,7 +6,7 @@ use bracket_noise::prelude::*;
 use std::sync::mpsc;
 use rayon::prelude::*;
 
-use super::{CHUNKS_GEN_PER_FRAME, RENDER_DISTANCE, chunk::{self, Chunk, block::{Block, BlockList}}, color::Color, renderer::{Renderer, mesh::Mesh}};
+use super::{CHUNKS_GEN_PER_FRAME, RENDER_DISTANCE, camera::Camera, chunk::{self, Chunk, block::{Block, BlockList}}, color::Color, renderer::{Renderer, mesh::Mesh}};
 
 fn smoothstep(edge0: f32, edge1: f32, input: f32) -> f32 {
     let x = clamp((input - edge0) / (edge1 - edge0), 0.0, 1.0);
@@ -69,7 +69,7 @@ impl World {
         }
     }
 
-    pub fn update(&mut self, renderer: &mut Renderer, delta: f32) {
+    pub fn update(&mut self, renderer: &mut Renderer, camera: &Camera, delta: f32) {
         
         self.time += delta as f64;
         
@@ -111,8 +111,6 @@ impl World {
 
                 let chunk = Chunk::new(*pos, self);
                 s.send((*pos, chunk)).unwrap();
-                
-                //chunk.generate_mesh(&renderer.device, self);
 
             });
         
@@ -158,8 +156,7 @@ impl World {
         let mut meshes = Vec::new();
         for (pos, chunk) in self.chunks.iter() {
             if chunk.should_regen_mesh {
-                let (vertices, indices) = chunk.generate_mesh_parts(self);
-                meshes.push((*pos, (vertices, indices)));
+                meshes.push((*pos, chunk));
             }
         }
 
@@ -168,11 +165,11 @@ impl World {
 
         let count = meshes.len();
         meshes.par_drain(..meshes.len())
-            .for_each_with(tx, |tx, (pos, mesh_data)| {
+            .for_each_with(tx, |tx, (pos, chunk)| {
 
-                let mesh = Mesh::new(&renderer.device, mesh_data.0, mesh_data.1);
+                let (vertices, indices) = chunk.generate_mesh_parts(self);
+                let mesh = Mesh::new(&renderer.device, vertices, indices);
                 tx.send((pos, mesh)).unwrap();
-
 
             });
         

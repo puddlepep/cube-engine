@@ -21,11 +21,13 @@ use self::renderer::Renderer;
 use self::renderer::mesh::Mesh;
 use cgmath::{MetricSpace, Vector3};
 
-const RENDER_DISTANCE: u32 = 6;
+const RENDER_DISTANCE: u32 = 8;
 const DESTROY_DISTANCE: u32 = RENDER_DISTANCE + 2;
 const FIXED_UPDATES_PER_SECOND: u32 = 120;
 
-const CHUNKS_GEN_PER_FRAME: u32 = 8;
+
+
+const CHUNKS_GEN_PER_FRAME: u32 = 16;
 
 struct Game {
 
@@ -47,9 +49,6 @@ struct Game {
 
 
 
-// functions extracted from the event_loop closure because it was
-// getting very crowded and frustrating to navigate in there.
-
 // Executes consistently every x amount of time.
 fn fixed_update(game: &mut Game) {
     game.player.update(&mut game.input, &game.world);
@@ -65,7 +64,7 @@ fn update(game: &mut Game) {
     );
     let icam_pos: Vector3<i32> = Vector3::new(fcam_pos.x as i32, fcam_pos.y as i32, fcam_pos.z as i32);
 
-    game.world.update(&mut game.renderer, game.delta);
+    game.world.update(&mut game.renderer, &game.player.camera, game.delta);
     game.world.generate_chunk(&icam_pos, &fcam_pos);
     
     let mut chunks_to_loop: Vec<Vector3<i32>> = Vec::new();
@@ -91,15 +90,6 @@ fn update(game: &mut Game) {
     
     for at in chunks_to_loop {
 
-        // let mut n: u8 = 0;
-        // n += game.world.generate_chunk(&(at + Chunk::FORWARD), &fcam_pos) as u8;
-        // n += game.world.generate_chunk(&(at + Chunk::BACKWARD), &fcam_pos) as u8;
-        // n += game.world.generate_chunk(&(at + Chunk::LEFT), &fcam_pos) as u8;
-        // n += game.world.generate_chunk(&(at + Chunk::RIGHT), &fcam_pos) as u8;
-        // n += game.world.generate_chunk(&(at + Chunk::UP), &fcam_pos) as u8;
-        // n += game.world.generate_chunk(&(at + Chunk::DOWN), &fcam_pos) as u8;
-        // game.world.chunks.get_mut(&at).unwrap().active_neighbors = n;
-
         game.world.generate_chunk(&(at + Chunk::FORWARD), &fcam_pos);
         game.world.generate_chunk(&(at + Chunk::BACKWARD), &fcam_pos);
         game.world.generate_chunk(&(at + Chunk::LEFT), &fcam_pos);
@@ -107,19 +97,6 @@ fn update(game: &mut Game) {
         game.world.generate_chunk(&(at + Chunk::UP), &fcam_pos);
         game.world.generate_chunk(&(at + Chunk::DOWN), &fcam_pos);
     }
-
-    
-    // let mut chunks_to_regen: Vec<Vector3<i32>> = Vec::new();
-    // for (p, chunk) in &mut game.world.chunks {
-    //     if chunk.should_regen_mesh {
-    //         chunks_to_regen.push(*p);
-    //     }
-    // }
-
-    // for p in chunks_to_regen {
-    //     game.world.update_chunk_mesh(&p, &game.renderer);
-    //     match game.world.chunks.get_mut(&p) { Some(chunk) => chunk.should_regen_mesh = false, None => () }
-    // }
 }
 
 
@@ -128,12 +105,17 @@ fn render(game: &mut Game) {
 
     if !game.is_minimized {
         let mut pool: Vec<&Mesh> = Vec::new();
+        let chunk_diag: f32 = f32::sqrt((chunk::CHUNK_SIZE as f32 * chunk::CHUNK_SIZE as f32) + (chunk::CHUNK_SIZE as f32 * chunk::CHUNK_SIZE as f32));
+
         for (_at, chunk) in &game.world.chunks {
-            match &chunk.mesh {
-                Some(mesh) => {
-                    pool.push(mesh);
+
+            if game.player.camera.frustum.sphere_intersection(chunk.get_world_position(), chunk_diag * 0.75) {
+                match &chunk.mesh {
+                    Some(mesh) => {
+                        pool.push(mesh);
+                    }
+                    None => ()
                 }
-                None => ()
             }
         }
         

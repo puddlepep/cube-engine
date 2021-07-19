@@ -6,6 +6,7 @@ use super::renderer::vertex::Vertex;
 use cgmath::Vector3;
 
 pub const CHUNK_SIZE: usize = 16;
+
 pub const GRID_MAX: usize = CHUNK_SIZE - 1;
 
 pub struct Chunk {
@@ -34,6 +35,14 @@ impl Chunk {
     pub const DOWN: Vector3<i32> = Vector3::new(0, -1, 0);
     pub const LEFT: Vector3<i32> = Vector3::new(-1, 0, 0);
     pub const RIGHT: Vector3<i32> = Vector3::new(1, 0, 0);
+
+    pub fn get_world_position(&self) -> Vector3<f32> {
+        Vector3::new(
+            self.position.x as f32 + 0.5,
+            self.position.y as f32 + 0.5,
+            self.position.z as f32 + 0.5,
+        ) * CHUNK_SIZE as f32
+    }
 
     pub fn get_noise_value_at(position: cgmath::Vector3<i32>, world: &World) -> f32 {
 

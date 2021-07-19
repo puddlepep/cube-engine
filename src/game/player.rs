@@ -1,6 +1,7 @@
 use cgmath::{InnerSpace, Vector3};
 
 use super::World;
+use super::camera::frustum::Frustum;
 use super::collision;
 use super::input_handler::InputMap;
 use super::camera::{self, Camera};
@@ -35,6 +36,7 @@ impl Player {
 
                 width: renderer.swap_chain_desc.width,
                 height: renderer.swap_chain_desc.height,
+                frustum: Frustum::new(),
             },
             speed: 0.03,
             jump_force: 0.07,
@@ -42,7 +44,7 @@ impl Player {
             gravity_vel: cgmath::Vector3::new(0.0, 0.0, 0.0),
             gravity: 0.002,
 
-            freecam_mode: false,
+            freecam_mode: true,
         }
     }
 
@@ -58,7 +60,7 @@ impl Player {
             println!("toggled freecam mode");
         }
 
-        if input.get_key(Key::F3).held {
+        if input.get_key(Key::F3).just_pressed {
             println!("coordinates: {:?}", self.position);
         }
 
@@ -172,6 +174,10 @@ impl Player {
         if self.camera.pitch < camera::PITCH_MIN { self.camera.pitch = camera::PITCH_MIN; }
         if self.camera.pitch > camera::PITCH_MAX { self.camera.pitch = camera::PITCH_MAX; }
         
+        // don't forget to update the frustum planes!
+        let planes = self.camera.frustum.get_planes(&self.camera);
+        self.camera.frustum.planes = planes;
+
     }
 
 }

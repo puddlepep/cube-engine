@@ -1,3 +1,5 @@
+pub mod frustum;
+
 use std::f32::consts::PI;
 
 use cgmath::Rad;
@@ -33,6 +35,8 @@ pub struct Camera {
 
     pub width: u32,
     pub height: u32,
+    pub frustum: frustum::Frustum,
+
 }
 
 impl Camera {
@@ -65,7 +69,7 @@ impl Camera {
 
     // Returns all (important) normalized directions of the camera.
     // -> ( forward, right, up )
-    pub fn get_headings(&mut self) -> ( Vector3<f32>, Vector3<f32>, Vector3<f32> ) {
+    pub fn get_headings(&self) -> ( Vector3<f32>, Vector3<f32>, Vector3<f32> ) {
         
         let y_rot = cgmath::Matrix3::from_angle_y(Rad(-self.yaw));
         let forward = y_rot * -Vector3::unit_z();
