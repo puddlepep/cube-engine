@@ -1,5 +1,5 @@
 # Cube Engine
 
-A minecraft-like cube terrain generator built purely off Rust.
+A minecraft-like cubic terrain generator built purely in Rust.
 
 ![Cubes!](./screenshots/cube_engine.png)
